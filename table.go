@@ -24,7 +24,7 @@ func (t *table) appendRow(row []string) {
 	t.rows = append(t.rows, row)
 }
 
-func (t *table) format(spacing int) []string {
+func (t *table) format(maxLines, spacing int) []string {
 	if len(t.rows) == 0 {
 		return nil
 	}
@@ -53,5 +53,11 @@ func (t *table) format(spacing int) []string {
 			}
 		}
 	}
+
+	if len(lines) > maxLines {
+		lines[maxLines-1] = fmt.Sprintf("[%d more]", len(lines)-maxLines+1)
+		lines = lines[:maxLines]
+	}
+
 	return lines
 }

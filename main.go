@@ -18,7 +18,8 @@ import (
 )
 
 const (
-	maxDetailLen = 40
+	maxDetailLen   = 40
+	maxDetailLines = 5
 )
 
 func main() {
@@ -175,5 +176,5 @@ func formatDetails(raw googleapi.RawMessage) []string {
 		table.appendRow(row)
 	}
 
-	return table.format(2)
+	return table.format(maxDetailLines, 2)
 }
