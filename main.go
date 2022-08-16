@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	maxDetailLen = 80
+	maxDetailLen = 40
 )
 
 func main() {
@@ -73,7 +73,7 @@ func main() {
 		for _, ar := range cat.AuditRefs {
 			audit, ok := lhr.Audits[ar.Id]
 			if !ok {
-				fmt.Fprintln(os.Stderr, "Missing audit %q", ar.Id)
+				fmt.Fprintf(os.Stderr, "Missing audit %q\n", ar.Id)
 				continue
 			}
 			score := score100(audit.Score)
@@ -117,14 +117,14 @@ func formatDetails(raw googleapi.RawMessage) []string {
 		Items []map[string]interface{} `json:"items"`
 	}
 	if err := json.Unmarshal(raw, &details); err != nil {
-		return []string{string(raw)}
+		return []string{elide(string(raw), maxDetailLen)}
 	}
 	if len(details.Headings) == 0 || len(details.Items) == 0 {
 		return nil
 	}
-	var keys, units []string
-	table := [][]string{[]string(nil)}
 
+	table := newTable()
+	var headings, keys, units []string // names, keys, and units for each column
 	for _, h := range details.Headings {
 		var name string
 		if h.Text != "" {
@@ -132,15 +132,18 @@ func formatDetails(raw googleapi.RawMessage) []string {
 		} else if h.Label != "" {
 			name = h.Label
 		}
+		headings = append(headings, strings.TrimSpace(name))
+
 		var un string
 		switch h.ItemType {
 		case "ms", "bytes":
 			un = h.ItemType
 		}
-		table[0] = append(table[0], strings.TrimSpace(name))
-		keys = append(keys, h.Key)
 		units = append(units, un)
+
+		keys = append(keys, h.Key)
 	}
+	table.appendRow(headings)
 
 	for _, item := range details.Items {
 		var row []string
@@ -167,36 +170,10 @@ func formatDetails(raw googleapi.RawMessage) []string {
 					val = fmt.Sprint(vt)
 				}
 			}
-			if len(val) > maxDetailLen {
-				val = val[:maxDetailLen-3] + "..."
-			}
-			row = append(row, val)
+			row = append(row, elide(val, maxDetailLen))
 		}
-		table = append(table, row)
+		table.appendRow(row)
 	}
 
-	// Find the maximum width for each column.
-	widths := make([]int, len(table[0]))
-	for _, row := range table {
-		for i, cell := range row {
-			if w := len(cell); w > widths[i] {
-				widths[i] = w
-			}
-		}
-	}
-
-	lines := make([]string, len(table))
-	for i, row := range table {
-		for j, cell := range row {
-			width := widths[j]
-			if width == 0 {
-				continue // skip completely-empty columns
-			}
-			lines[i] += cell
-			if j < len(row)-1 {
-				lines[i] += strings.Repeat(" ", width-len(cell)) + "  "
-			}
-		}
-	}
-	return lines
+	return table.format(2)
 }
