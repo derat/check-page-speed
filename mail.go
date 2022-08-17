@@ -5,6 +5,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/tls"
 	"fmt"
 	"html/template"
 	"io"
@@ -52,7 +53,14 @@ func sendMail(reports []*report, cfg *reportConfig) error {
 		_, err = msg.WriteTo(os.Stdout)
 		return err
 	}
+
 	dialer := gomail.Dialer{Host: mailHost, Port: mailPort}
+	if dialer.Host == "localhost" {
+		// Try to work around "x509: certificate is not valid for any names, but wanted to match
+		// localhost" errors, since we're just connecting to localhost anyway:
+		// https://github.com/go-gomail/gomail#x509-certificate-signed-by-unknown-authority
+		dialer.TLSConfig = &tls.Config{InsecureSkipVerify: true}
+	}
 	return dialer.DialAndSend(msg)
 }
 

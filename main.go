@@ -47,7 +47,7 @@ func main() {
 	mobile := flag.Bool("mobile", false, "Analyzes the page as a mobile (rather than desktop) device")
 	retries := flag.Int("retries", 2, "Maximum retries after failed calls to API")
 	verbose := flag.Bool("verbose", false, "Log verbosely")
-	workers := flag.Int("workers", 32, "Maximum simultaneous calls to API")
+	workers := flag.Int("workers", 8, "Maximum simultaneous calls to API")
 	flag.Parse()
 
 	if flag.NArg() < 1 {
@@ -106,7 +106,8 @@ func main() {
 		for len(done) < len(urls) {
 			job := <-results
 			if job.err != nil && job.attempts <= *retries {
-				log.Printf("Will retry %v: %v", job.url, job.err)
+				// The API fails often, so make retries silent.
+				vlogf("Will retry %v: %v", job.url, job.err)
 				jobs <- job
 			} else {
 				done[job.url] = job
