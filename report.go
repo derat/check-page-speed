@@ -13,25 +13,29 @@ import (
 	pso "google.golang.org/api/pagespeedonline/v5"
 )
 
+// report describes a Lighthouse report returned by PageSpeed Insights for a single URL.
 type report struct {
-	URL        string
+	URL        string // canonicalized by PSI
 	Categories []category
 }
 
+// category describes a category ("Performance", "Accessibility", etc.) within a Lighthouse report.
 type category struct {
-	Title  string
-	Abbrev string
-	Score  int // [0, 100]
+	Title  string // e.g. "Performance"
+	Abbrev string // e.g. "Perf"
+	Score  int    // [0, 100]
 	Audits []audit
 }
 
+// audit describes an audit (e.g. "Serve images in next-gen formats") within a Lighthouse report.
 type audit struct {
 	Title   string
-	Score   int // [0, 100] or -1 if unset
-	Value   string
-	Details [][]string
+	Score   int        // [0, 100] or -1 if unset
+	Value   string     // optional
+	Details [][]string // tabular details about the audit
 }
 
+// readReport returns the Lighthouse report from a PageSpeed Insights API response.
 func readReport(res *pso.PagespeedApiPagespeedResponseV5) (*report, error) {
 	rep := &report{URL: res.Id}
 	lhr := res.LighthouseResult
@@ -68,6 +72,8 @@ func readReport(res *pso.PagespeedApiPagespeedResponseV5) (*report, error) {
 	return rep, nil
 }
 
+// score100 converts the supplied float64 in [0, 1] to an int in [0, 100].
+// -1 is returned if score is not a float64 (typically because it's nil instead).
 func score100(score interface{}) int {
 	f, ok := score.(float64)
 	if !ok {
@@ -76,6 +82,7 @@ func score100(score interface{}) int {
 	return int(math.Round(f * 100))
 }
 
+// categoryAbbrev returns a short abbreviation for pso.LighthouseCategoryV5.Id.
 func categoryAbbrev(id string) string {
 	switch id {
 	case "accessibility":
@@ -92,6 +99,7 @@ func categoryAbbrev(id string) string {
 	return id
 }
 
+// getDetails tries to extract tabular data from pso.LighthouseAuditResultV5.Details.
 func getDetails(raw googleapi.RawMessage) [][]string {
 	if len(raw) == 0 {
 		return nil
