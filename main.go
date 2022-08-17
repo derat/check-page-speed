@@ -5,13 +5,9 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
-	"log"
-	"math"
-	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -34,9 +30,13 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Prints analysis from PageSpeed Insights.\n\n")
 		flag.PrintDefaults()
 	}
+	var cfg config
+	flag.StringVar(&cfg.audits, "audits", auditsFailed,
+		fmt.Sprintf("Audits to print (%q, %q, %q)", auditsFailed, auditsAll, auditsNone))
+	flag.BoolVar(&cfg.details, "details", true, "Print audit details")
 	key := flag.String("key", "", "API key to use (empty for no key)")
 	mobile := flag.Bool("mobile", false, "Analyzes the page as a mobile (rather than desktop) device")
-	pathOnly := flag.Bool("path-only", false, "Just print URL paths in report")
+	flag.BoolVar(&cfg.pathOnly, "path-only", false, "Just print URL paths in report")
 	flag.Parse()
 
 	if flag.NArg() != 1 {
@@ -68,39 +68,14 @@ func main() {
 		os.Exit(1)
 	}
 
-	rep := report{URL: res.Id}
-	lhr := res.LighthouseResult
-	for _, lhrCat := range []*pso.LighthouseCategoryV5{
-		// This matches the order in Chrome DevTools.
-		lhr.Categories.Performance,
-		lhr.Categories.Accessibility,
-		lhr.Categories.BestPractices,
-		lhr.Categories.Seo,
-		lhr.Categories.Pwa,
-	} {
-		cat := category{
-			Title:  lhrCat.Title,
-			Abbrev: categoryAbbrev(lhrCat.Id),
-			Score:  score100(lhrCat.Score),
-		}
-		for _, ar := range lhrCat.AuditRefs {
-			lhrAudit, ok := lhr.Audits[ar.Id]
-			if !ok {
-				log.Printf("%v category %q is missing audit %q", rep.URL, cat.Title, ar.Id)
-				continue
-			}
-			cat.Audits = append(cat.Audits, audit{
-				Title:   lhrAudit.Title,
-				Score:   score100(lhrAudit.Score),
-				Details: getDetails(lhrAudit.Details),
-			})
-		}
-		rep.Categories = append(rep.Categories, cat)
+	rep, err := readReport(res)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed reeading report for %v: %v\n", res.Id, err)
+		os.Exit(1)
 	}
+	reports := []*report{rep}
 
-	reports := []report{rep}
-
-	if err := writeSummary(os.Stdout, reports, *pathOnly); err != nil {
+	if err := writeSummary(os.Stdout, reports, &cfg); err != nil {
 		fmt.Fprintln(os.Stderr, "Failed writing summary:", err)
 		os.Exit(1)
 	}
@@ -108,14 +83,26 @@ func main() {
 
 	for _, rep := range reports {
 		fmt.Fprintln(os.Stdout, strings.Repeat("=", reportDividerLen))
-		if err := writeReport(os.Stdout, rep); err != nil {
+		if err := writeReport(os.Stdout, rep, &cfg); err != nil {
 			fmt.Fprintf(os.Stderr, "Failed writing report for %v: %v", rep.URL, err)
 			os.Exit(1)
 		}
 	}
 }
 
-func writeSummary(w io.Writer, reps []report, pathOnly bool) error {
+type config struct {
+	pathOnly bool
+	audits   string
+	details  bool
+}
+
+const (
+	auditsFailed = "failed"
+	auditsAll    = "all"
+	auditsNone   = "none"
+)
+
+func writeSummary(w io.Writer, reps []*report, cfg *config) error {
 	rows := [][]string{[]string{"URL"}}
 	tableOpts := []tableOpt{tableSpacing(2)}
 	for i, cat := range reps[0].Categories {
@@ -124,7 +111,7 @@ func writeSummary(w io.Writer, reps []report, pathOnly bool) error {
 	}
 	for _, rep := range reps {
 		var row []string
-		if pathOnly {
+		if cfg.pathOnly {
 			row = append(row, urlPath(rep.URL))
 		} else {
 			row = append(row, rep.URL)
@@ -144,160 +131,44 @@ func writeSummary(w io.Writer, reps []report, pathOnly bool) error {
 	return nil
 }
 
-func writeReport(w io.Writer, rep report) error {
+func writeReport(w io.Writer, rep *report, cfg *config) error {
 	fmt.Fprintln(w, rep.URL)
 	fmt.Fprintln(w)
 
 	for _, cat := range rep.Categories {
 		fmt.Fprintf(w, "%3d %s\n", cat.Score, cat.Title)
+		if cfg.audits == auditsNone {
+			continue
+		}
 		fmt.Fprintln(w, strings.Repeat("-", catUnderlineLen))
 		for _, aud := range cat.Audits {
-			if aud.Score < 0 || aud.Score == 100 {
+			if cfg.audits == auditsFailed && (aud.Score < 0 || aud.Score == 100) {
 				continue
 			}
-			text := aud.Title
+
+			var ln string
+			if aud.Score >= 0 {
+				ln += fmt.Sprintf("%3d", aud.Score)
+			} else {
+				ln += "  ."
+			}
+			ln += " " + aud.Title
 			if aud.Value != "" {
-				text += ": " + aud.Value
+				ln += ": " + aud.Value
 			}
-			fmt.Fprintf(w, "%3d %s\n", aud.Score, text)
-			details, err := formatTable(aud.Details, tableSpacing(2), tableMaxLines(maxDetailLines))
-			if err != nil {
-				return fmt.Errorf("%q details: %v", aud.Title, err)
-			}
-			for _, det := range details {
-				fmt.Fprintf(w, "    %s\n", det)
+			fmt.Fprintln(w, ln)
+
+			if cfg.details {
+				details, err := formatTable(aud.Details, tableSpacing(2), tableMaxLines(maxDetailLines))
+				if err != nil {
+					return fmt.Errorf("%q details: %v", aud.Title, err)
+				}
+				for _, det := range details {
+					fmt.Fprintf(w, "    %s\n", det)
+				}
 			}
 		}
 		fmt.Fprintln(w)
 	}
 	return nil
-}
-
-func score100(score interface{}) int {
-	f, ok := score.(float64)
-	if !ok {
-		return -1
-	}
-	return int(math.Round(f * 100))
-}
-
-func getDetails(raw googleapi.RawMessage) [][]string {
-	if len(raw) == 0 {
-		return nil
-	}
-	var details struct {
-		Type     string `json:"type"`
-		Headings []struct {
-			Key      string `json:"key"`
-			Text     string `json:"text"`
-			Label    string `json:"label"`
-			ItemType string `json:"itemType"`
-		} `json:"headings"`
-		Items []map[string]interface{} `json:"items"`
-	}
-	if err := json.Unmarshal(raw, &details); err != nil {
-		return [][]string{{string(raw)}}
-	}
-	if len(details.Headings) == 0 || len(details.Items) == 0 {
-		return nil
-	}
-
-	var headings, keys, units []string // names, keys, and units for each column
-	for _, h := range details.Headings {
-		var name string
-		if h.Text != "" {
-			name = h.Text
-		} else if h.Label != "" {
-			name = h.Label
-		}
-		headings = append(headings, strings.TrimSpace(name))
-
-		var un string
-		switch h.ItemType {
-		case "ms", "bytes":
-			un = h.ItemType
-		}
-		units = append(units, un)
-
-		keys = append(keys, h.Key)
-	}
-
-	rows := [][]string{headings}
-	for _, item := range details.Items {
-		var row []string
-		for i, key := range keys {
-			var val string
-			if v, ok := item[key]; ok {
-				switch vt := v.(type) {
-				case string:
-					val = strings.TrimSpace(vt)
-				case float64:
-					val = strings.TrimSuffix(fmt.Sprintf("%.1f", vt), ".0")
-					if un := units[i]; un != "" {
-						val += " " + un
-					}
-				case map[string]interface{}:
-					if s, ok := vt["snippet"].(string); ok {
-						val = s
-					} else if s, ok := vt["url"].(string); ok {
-						val = s
-					} else {
-						val = fmt.Sprint(vt)
-					}
-				default:
-					val = fmt.Sprint(vt)
-				}
-			}
-			row = append(row, elide(val, maxDetailLen))
-		}
-		rows = append(rows, row)
-	}
-
-	return rows
-}
-
-type report struct {
-	URL        string
-	Categories []category
-}
-
-type category struct {
-	Title  string
-	Abbrev string
-	Score  int // [0, 100]
-	Audits []audit
-}
-
-type audit struct {
-	Title   string
-	Score   int // [0, 100] or -1 if unset
-	Value   string
-	Details [][]string
-}
-
-func categoryAbbrev(id string) string {
-	switch id {
-	case "accessibility":
-		return "A11Y"
-	case "best-practices":
-		return "Best"
-	case "performance":
-		return "Perf"
-	case "pwa":
-		return "PWA"
-	case "seo":
-		return "SEO"
-	}
-	return id
-}
-
-func urlPath(full string) string {
-	url, err := url.Parse(full)
-	if err != nil {
-		return full
-	}
-	url.Scheme = ""
-	url.User = nil
-	url.Host = ""
-	return url.String()
 }

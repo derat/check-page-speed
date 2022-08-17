@@ -14,7 +14,12 @@ func TestElide(t *testing.T) {
 		want string
 	}{
 		{"hello", 10, "hello"},
-		{"hello this is a test", 10, "hello thi…"},
+		{"hello there", 1, "…"},
+		{"hello there", 2, "h…"},
+		{"hello there", 9, "hello th…"},
+		{"hello there", 10, "hello the…"},
+		{"hello there", 11, "hello there"},
+		{"hello there", 12, "hello there"},
 		{"https://example.org/dir/file.html", 20, "https://example.org…"},
 		{"https://example.org/dir/file.html", 21, "https://example.org/…"},
 		{"https://example.org/dir/file.html", 22, "https://example.org/d…"},
@@ -34,6 +39,21 @@ func TestElide(t *testing.T) {
 	} {
 		if got := elide(tc.in, tc.max); got != tc.want {
 			t.Errorf("elide(%q, %v) = %q; want %q", tc.in, tc.max, got, tc.want)
+		}
+	}
+}
+
+func TestUrlPath(t *testing.T) {
+	for _, tc := range []struct{ in, want string }{
+		{"https://www.example.org", ""},
+		{"https://www.example.org/", "/"},
+		{"https://www.example.org/foo/bar.html", "/foo/bar.html"},
+		{"https://www.example.org:443/foo/bar.html", "/foo/bar.html"},
+		{"foo", "foo"},
+		{"", ""},
+	} {
+		if got := urlPath(tc.in); got != tc.want {
+			t.Errorf("urlPath(%q) = %q; want %q", tc.in, got, tc.want)
 		}
 	}
 }

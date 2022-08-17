@@ -39,7 +39,7 @@ func formatTable(rows [][]string, opts ...tableOpt) ([]string, error) {
 	widths := make([]int, len(rows[0]))
 	for i, row := range rows {
 		if i > 0 && len(row) != len(rows[0]) {
-			return nil, fmt.Errorf("row %d has %v column(s); want %v", len(row), len(rows[0]))
+			return nil, fmt.Errorf("row %d has %v column(s); want %v", i, len(row), len(rows[0]))
 		}
 		for j, val := range row {
 			if width := utf8.RuneCountInString(val); width > widths[j] {

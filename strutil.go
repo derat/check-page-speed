@@ -4,6 +4,7 @@
 package main
 
 import (
+	"net/url"
 	"regexp"
 	"unicode/utf8"
 )
@@ -32,3 +33,14 @@ func elide(s string, max int) string {
 
 // Extracts the '[scheme]://[authority]/' part and remainder of a URL.
 var elideURLRegexp = regexp.MustCompile(`^([^/]+://[^/]+/)(.+)$`)
+
+func urlPath(full string) string {
+	url, err := url.Parse(full)
+	if err != nil {
+		return full
+	}
+	url.Scheme = ""
+	url.User = nil
+	url.Host = ""
+	return url.String()
+}
