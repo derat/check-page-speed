@@ -20,9 +20,9 @@ func tableRightCol(idx int) tableOpt   { return func(cfg *tableCfg) { cfg.rightC
 
 // formatTable formats the supplied rows as lines of aligned columns.
 // Rows can have different numbers of columns.
-func formatTable(rows [][]string, opts ...tableOpt) ([]string, error) {
+func formatTable(rows [][]string, opts ...tableOpt) []string {
 	if len(rows) == 0 {
-		return nil, nil
+		return nil
 	}
 
 	cfg := tableCfg{
@@ -37,7 +37,7 @@ func formatTable(rows [][]string, opts ...tableOpt) ([]string, error) {
 	widths := make([]int, len(rows[0]))
 	for _, row := range rows {
 		for j, val := range row {
-			if width := utf8.RuneCountInString(val); j > len(widths) {
+			if width := utf8.RuneCountInString(val); j >= len(widths) {
 				widths = append(widths, width)
 			} else if width > widths[j] {
 				widths[j] = width
@@ -66,5 +66,5 @@ func formatTable(rows [][]string, opts ...tableOpt) ([]string, error) {
 			}
 		}
 	}
-	return lines, nil
+	return lines
 }

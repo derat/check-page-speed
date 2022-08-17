@@ -192,11 +192,7 @@ func writeSummary(w io.Writer, reps []*report, cfg *writeConfig) error {
 		}
 		rows = append(rows, row)
 	}
-	lines, err := formatTable(rows, tableOpts...)
-	if err != nil {
-		return fmt.Errorf("failed formatting table: %v", err)
-	}
-	for _, ln := range lines {
+	for _, ln := range formatTable(rows, tableOpts...) {
 		fmt.Fprintln(w, ln)
 	}
 	return nil
@@ -239,10 +235,7 @@ func writeReport(w io.Writer, rep *report, cfg *writeConfig) error {
 						}
 					}
 				}
-				details, err := formatTable(aud.Details, tableSpacing(2))
-				if err != nil {
-					return fmt.Errorf("%q details: %v", aud.Title, err)
-				}
+				details := formatTable(aud.Details, tableSpacing(2))
 				if cfg.maxDetails > 0 && len(details) > cfg.maxDetails {
 					details[cfg.maxDetails-1] = fmt.Sprintf("[%d more]", len(details)-cfg.maxDetails+1)
 					details = details[:cfg.maxDetails]

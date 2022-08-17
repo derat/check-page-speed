@@ -11,12 +11,14 @@ import (
 
 const elideURLMinPath = 5
 
+// elide shortens the supplied UTF-8 string to at most max runes.
 func elide(s string, max int) string {
 	r := []rune(s)
 	if len(r) <= max {
 		return s
 	}
 
+	// For URLs, elide the middle portion of the path.
 	ms := elideURLRegexp.FindStringSubmatch(s)
 	if ms != nil && utf8.RuneCountInString(ms[1]) < max {
 		url, end := []rune(ms[1]), []rune(ms[2])
@@ -34,6 +36,7 @@ func elide(s string, max int) string {
 // Extracts the '[scheme]://[authority]/' part and remainder of a URL.
 var elideURLRegexp = regexp.MustCompile(`^([^/]+://[^/]+/)(.+)$`)
 
+// urlPath returns just the path portion (including leading slash) of the supplied URL.
 func urlPath(full string) string {
 	url, err := url.Parse(full)
 	if err != nil {
