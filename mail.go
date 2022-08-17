@@ -13,6 +13,7 @@ import (
 	"os/user"
 	"strconv"
 	"strings"
+	"time"
 
 	"gopkg.in/gomail.v2"
 )
@@ -21,8 +22,6 @@ const (
 	// SMTP connection info.
 	mailHost = "localhost"
 	mailPort = 25
-
-	attachmentFilename = "page-speed-reports.txt"
 )
 
 func sendMail(reports []*report, cfg *reportConfig) error {
@@ -38,12 +37,12 @@ func sendMail(reports []*report, cfg *reportConfig) error {
 	msg := gomail.NewMessage()
 	msg.SetHeader("From", from)
 	msg.SetHeader("To", cfg.mailAddr)
-	msg.SetHeader("Subject", "check-page-speed report")
+	msg.SetHeader("Subject", "check-page-speed report for "+cfg.startTime.Format(time.RFC1123Z))
 
 	msg.SetBody("text/plain", text)
 	msg.AddAlternative("text/html", html)
 
-	msg.Attach(attachmentFilename,
+	msg.Attach(fmt.Sprintf("page-speed-%s.txt", cfg.startTime.Format("20060102-030405")),
 		gomail.SetCopyFunc(func(w io.Writer) error { return writeReports(w, reports, cfg) }),
 		gomail.SetHeader(map[string][]string{"Content-Type": []string{"text/plain"}}),
 	)

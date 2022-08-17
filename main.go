@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
@@ -16,6 +17,7 @@ import (
 )
 
 type reportConfig struct {
+	startTime   time.Time
 	mailAddr    string // email address to send to ("-" to dump to stdout)
 	fullURLs    bool   // print full URLs instead of paths in summary table
 	audits      string // auditsFailed, auditsAll, auditsNone
@@ -36,7 +38,7 @@ func main() {
 		flag.PrintDefaults()
 	}
 
-	var cfg reportConfig
+	cfg := reportConfig{startTime: time.Now()}
 	flag.StringVar(&cfg.audits, "audits", auditsFailed,
 		fmt.Sprintf("Audits to print (%q, %q, %q)", auditsFailed, auditsAll, auditsNone))
 	flag.IntVar(&cfg.maxDetails, "details", 5, "Maximum details for each audit (-1 for all)")
