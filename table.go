@@ -4,23 +4,22 @@
 package main
 
 import (
-	"fmt"
 	"strings"
 	"unicode/utf8"
 )
 
 type tableCfg struct {
 	spacing   int
-	maxLines  int
 	rightCols map[int]struct{}
 }
 
 type tableOpt func(cfg *tableCfg)
 
 func tableSpacing(spaces int) tableOpt { return func(cfg *tableCfg) { cfg.spacing = spaces } }
-func tableMaxLines(lines int) tableOpt { return func(cfg *tableCfg) { cfg.maxLines = lines } }
 func tableRightCol(idx int) tableOpt   { return func(cfg *tableCfg) { cfg.rightCols[idx] = struct{}{} } }
 
+// formatTable formats the supplied rows as lines of aligned columns.
+// Rows can have different numbers of columns.
 func formatTable(rows [][]string, opts ...tableOpt) ([]string, error) {
 	if len(rows) == 0 {
 		return nil, nil
@@ -28,7 +27,6 @@ func formatTable(rows [][]string, opts ...tableOpt) ([]string, error) {
 
 	cfg := tableCfg{
 		spacing:   2,
-		maxLines:  -1,
 		rightCols: make(map[int]struct{}),
 	}
 	for _, opt := range opts {
@@ -37,12 +35,11 @@ func formatTable(rows [][]string, opts ...tableOpt) ([]string, error) {
 
 	// Find the maximum width for each column.
 	widths := make([]int, len(rows[0]))
-	for i, row := range rows {
-		if i > 0 && len(row) != len(rows[0]) {
-			return nil, fmt.Errorf("row %d has %v column(s); want %v", i, len(row), len(rows[0]))
-		}
+	for _, row := range rows {
 		for j, val := range row {
-			if width := utf8.RuneCountInString(val); width > widths[j] {
+			if width := utf8.RuneCountInString(val); j > len(widths) {
+				widths = append(widths, width)
+			} else if width > widths[j] {
 				widths[j] = width
 			}
 		}
@@ -69,11 +66,5 @@ func formatTable(rows [][]string, opts ...tableOpt) ([]string, error) {
 			}
 		}
 	}
-
-	if cfg.maxLines > 0 && len(lines) > cfg.maxLines {
-		lines[cfg.maxLines-1] = fmt.Sprintf("[%d more]", len(lines)-cfg.maxLines+1)
-		lines = lines[:cfg.maxLines]
-	}
-
 	return lines, nil
 }

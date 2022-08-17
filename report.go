@@ -159,7 +159,7 @@ func getDetails(raw googleapi.RawMessage) [][]string {
 					val = fmt.Sprint(vt)
 				}
 			}
-			row = append(row, elide(val, maxDetailLen))
+			row = append(row, val)
 		}
 		rows = append(rows, row)
 	}
