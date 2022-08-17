@@ -7,20 +7,26 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"io"
 	"log"
 	"os"
-	"strconv"
-	"strings"
 
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
 	pso "google.golang.org/api/pagespeedonline/v5"
 )
 
+type reportConfig struct {
+	mailAddr    string // email address to send to ("-" to dump to stdout)
+	fullURLs    bool   // print full URLs instead of paths in summary table
+	audits      string // auditsFailed, auditsAll, auditsNone
+	maxDetails  int    // max number of details to print per audit
+	detailWidth int    // max width of each column in a detail
+}
+
 const (
-	reportDividerLen = 80 // length of '=' dividers between URL reports
-	catUnderlineLen  = 20 // length of '-' underlines below category names
+	auditsFailed = "failed"
+	auditsAll    = "all"
+	auditsNone   = "none"
 )
 
 func main() {
@@ -30,14 +36,15 @@ func main() {
 		flag.PrintDefaults()
 	}
 
-	var cfg writeConfig
+	var cfg reportConfig
 	flag.StringVar(&cfg.audits, "audits", auditsFailed,
 		fmt.Sprintf("Audits to print (%q, %q, %q)", auditsFailed, auditsAll, auditsNone))
 	flag.IntVar(&cfg.maxDetails, "details", 5, "Maximum details for each audit (-1 for all)")
 	flag.IntVar(&cfg.detailWidth, "detail-width", 40, "Maximum audit detail column width (0 or -1 for no limit)")
+	flag.BoolVar(&cfg.fullURLs, "full-urls", false, "Print full URLs (instead of paths) in report")
 	key := flag.String("key", "", "API key to use (empty for no key)")
+	flag.StringVar(&cfg.mailAddr, "mail", "", "Email address to mail report to (write report to stdout if empty)")
 	mobile := flag.Bool("mobile", false, "Analyzes the page as a mobile (rather than desktop) device")
-	flag.BoolVar(&cfg.pathOnly, "path-only", false, "Just print URL paths in report")
 	retries := flag.Int("retries", 2, "Maximum retries after failed calls to API")
 	verbose := flag.Bool("verbose", false, "Log verbosely")
 	workers := flag.Int("workers", 32, "Maximum simultaneous calls to API")
@@ -117,35 +124,26 @@ func main() {
 			}
 		}
 
-		if err := writeSummary(os.Stdout, reports, &cfg); err != nil {
-			log.Print("Failed writing summary: ", err)
-			return 1
-		}
-		fmt.Fprintln(os.Stdout)
-
-		for _, rep := range reports {
-			fmt.Fprintln(os.Stdout, strings.Repeat("=", reportDividerLen))
-			if err := writeReport(os.Stdout, rep, &cfg); err != nil {
-				log.Printf("Failed writing report for %v: %v", rep.URL, err)
+		if cfg.mailAddr != "" {
+			vlogf("Sending mail to %v", cfg.mailAddr)
+			if err := sendMail(reports, &cfg); err != nil {
+				log.Print("Failed sending mail: ", err)
+				return 1
+			}
+		} else {
+			if err := writeSummary(os.Stdout, reports, &cfg); err != nil {
+				log.Print("Failed writing summary: ", err)
+				return 1
+			}
+			fmt.Fprintln(os.Stdout)
+			if err := writeReports(os.Stdout, reports, &cfg); err != nil {
+				log.Print("Failed writing reports: ", err)
 				return 1
 			}
 		}
 		return 0
 	}())
 }
-
-type writeConfig struct {
-	pathOnly    bool   // print paths instead of full URLs in summary table
-	audits      string // auditsFailed, auditsAll, auditsNone
-	maxDetails  int    // max number of details to print per audit
-	detailWidth int    // max width of each column in a detail
-}
-
-const (
-	auditsFailed = "failed"
-	auditsAll    = "all"
-	auditsNone   = "none"
-)
 
 // getReport uses svc to fetch and read a report for url.
 func getReport(svc *pso.PagespeedapiService, url string, mobile bool,
@@ -162,90 +160,4 @@ func getReport(svc *pso.PagespeedapiService, url string, mobile bool,
 		return nil, err
 	}
 	return readReport(res)
-}
-
-// writeSummary writes a text table to w summarizing the category scores
-// of each of the supplied reports.
-func writeSummary(w io.Writer, reps []*report, cfg *writeConfig) error {
-	// Add a heading row to the table, using categories from the first non-failed report.
-	rows := [][]string{[]string{"URL"}}
-	tableOpts := []tableOpt{tableSpacing(2)}
-	for _, rep := range reps {
-		if len(rep.Categories) > 0 {
-			for i, cat := range rep.Categories {
-				rows[0] = append(rows[0], cat.Abbrev)
-				tableOpts = append(tableOpts, tableRightCol(i+1))
-			}
-			break
-		}
-	}
-
-	for _, rep := range reps {
-		var row []string
-		if cfg.pathOnly {
-			row = append(row, urlPath(rep.URL))
-		} else {
-			row = append(row, rep.URL)
-		}
-		for _, cat := range rep.Categories {
-			row = append(row, strconv.Itoa(cat.Score))
-		}
-		rows = append(rows, row)
-	}
-	for _, ln := range formatTable(rows, tableOpts...) {
-		fmt.Fprintln(w, ln)
-	}
-	return nil
-}
-
-// writeReport writes rep to w in text format.
-func writeReport(w io.Writer, rep *report, cfg *writeConfig) error {
-	fmt.Fprintln(w, rep.URL)
-	fmt.Fprintln(w)
-
-	for _, cat := range rep.Categories {
-		fmt.Fprintf(w, "%3d %s\n", cat.Score, cat.Title)
-		if cfg.audits == auditsNone {
-			continue
-		}
-		fmt.Fprintln(w, strings.Repeat("-", catUnderlineLen))
-		for _, aud := range cat.Audits {
-			if cfg.audits == auditsFailed && (aud.Score < 0 || aud.Score == 100) {
-				continue
-			}
-
-			var ln string
-			if aud.Score >= 0 {
-				ln += fmt.Sprintf("%3d", aud.Score)
-			} else {
-				ln += "  ."
-			}
-			ln += " " + aud.Title
-			if aud.Value != "" {
-				ln += ": " + aud.Value
-			}
-			fmt.Fprintln(w, ln)
-
-			if len(aud.Details) > 0 && cfg.maxDetails != 0 {
-				// Elide long values.
-				if cfg.detailWidth > 0 {
-					for _, row := range aud.Details {
-						for j, val := range row {
-							row[j] = elide(val, cfg.detailWidth)
-						}
-					}
-				}
-				details := formatTable(aud.Details, tableSpacing(2))
-				if cfg.maxDetails > 0 && len(details) > cfg.maxDetails {
-					details[cfg.maxDetails-1] = fmt.Sprintf("[%d more]", len(details)-cfg.maxDetails+1)
-					details = details[:cfg.maxDetails]
-				}
-				for _, det := range details {
-					fmt.Fprintf(w, "    %s\n", det)
-				}
-			}
-		}
-		fmt.Fprintln(w)
-	}
-	return nil
 }
