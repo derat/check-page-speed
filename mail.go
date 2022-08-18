@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"net/url"
 	"os"
 	"os/user"
 	"strconv"
@@ -34,10 +35,16 @@ func sendMail(reports []*report, cfg *reportConfig) error {
 		return fmt.Errorf("couldn't get from address (consider setting $EMAIL): %v", err)
 	}
 
+	subject := "Page speed report"
+	if u, err := url.Parse(reports[0].URL); err == nil {
+		subject = u.Hostname() + " page speed report"
+	}
+	subject += " for " + cfg.startTime.Format(time.RFC1123Z)
+
 	msg := gomail.NewMessage()
 	msg.SetHeader("From", from)
 	msg.SetHeader("To", cfg.mailAddr)
-	msg.SetHeader("Subject", "check-page-speed report for "+cfg.startTime.Format(time.RFC1123Z))
+	msg.SetHeader("Subject", subject)
 
 	msg.SetBody("text/plain", text)
 	msg.AddAlternative("text/html", html)
