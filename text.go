@@ -52,7 +52,7 @@ func writeSummary(w io.Writer, reps []*report, cfg *reportConfig) error {
 // writeReports calls writeReport, printing a divider line between each report.
 func writeReports(w io.Writer, reps []*report, cfg *reportConfig) error {
 	for _, rep := range reps {
-		fmt.Fprintln(w, strings.Repeat("=", reportDividerLen))
+		fmt.Fprint(w, strings.Repeat("=", reportDividerLen)+"\n\n")
 		if err := writeReport(w, rep, cfg); err != nil {
 			return fmt.Errorf("%v: %v", rep.URL, err)
 		}

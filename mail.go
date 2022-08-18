@@ -200,9 +200,11 @@ const htmlTemplate = `
         {{- range $j, $col := $row}}
         {{if eq $i 0}}<th{{else}}<td{{end}}
             {{- if eq $j 0}} align="left"
-            {{- else}} align="right" style="padding-left: 8px"
+            {{- else}} align="right" style="padding-left:8px"
             {{- end}}{{if $col.Title}} title="{{$col.Title}}"{{end}}>
-          {{- if $col.Href}}<a href="{{$col.Href}}">{{end}}{{$col.Text}}{{if $col.Href}}</a>{{end -}}
+          {{- if $col.Href}}<a href="{{$col.Href}}" style="text-decoration:none;color:black">{{end -}}
+            {{$col.Text}}
+          {{- if $col.Href}}</a>{{end -}}
         {{if eq $i 0}}</th>{{else}}</td>{{end}}
         {{- end}}
       </tr>
