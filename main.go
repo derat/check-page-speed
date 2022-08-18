@@ -36,8 +36,8 @@ const (
 
 func main() {
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage: %s [flag]... <url> <url>...\n", os.Args[0])
-		fmt.Fprintf(os.Stderr, "Prints analysis from PageSpeed Insights.\n\n")
+		fmt.Fprintf(os.Stderr, "Usage: %s [flag]... <url>...\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "Analyzes web pages using PageSpeed Insights.\n\n")
 		flag.PrintDefaults()
 	}
 
