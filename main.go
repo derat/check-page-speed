@@ -21,6 +21,7 @@ const keyEnv = "PAGE_SPEED_API_KEY"
 type reportConfig struct {
 	startTime   time.Time
 	mobile      bool   // generate reports for mobile rather than desktop
+	pwa         bool   // perform PWA audits
 	mailAddr    string // email address to send to ("-" to dump to stdout)
 	fullURLs    bool   // print full URLs instead of paths in summary table
 	audits      string // auditsFailed, auditsAll, auditsNone
@@ -50,6 +51,7 @@ func main() {
 	key := flag.String("key", os.Getenv(keyEnv), fmt.Sprintf("API key to use (can also set %v)", keyEnv))
 	flag.StringVar(&cfg.mailAddr, "mail", "", "Email address to mail report to (write report to stdout if empty)")
 	flag.BoolVar(&cfg.mobile, "mobile", false, "Analyzes the page as a mobile (rather than desktop) device")
+	flag.BoolVar(&cfg.pwa, "pwa", true, "Perform Progressive Web App audits")
 	retries := flag.Int("retries", 2, "Maximum retries after failed calls to API")
 	verbose := flag.Bool("verbose", false, "Log verbosely")
 	workers := flag.Int("workers", 8, "Maximum simultaneous calls to API")
@@ -98,7 +100,7 @@ func main() {
 			go func() {
 				for job := range jobs {
 					vlogf("Starting attempt #%d for %v", job.attempts+1, job.url)
-					job.rep, job.err = getReport(apiSvc, job.url, cfg.mobile, apiOpts)
+					job.rep, job.err = getReport(apiSvc, job.url, &cfg, apiOpts)
 					vlogf("Finished attempt #%d for %v", job.attempts+1, job.url)
 					job.attempts++
 					results <- job
@@ -152,14 +154,19 @@ func main() {
 }
 
 // getReport uses svc to fetch and read a report for url.
-func getReport(svc *pso.PagespeedapiService, url string, mobile bool,
+func getReport(svc *pso.PagespeedapiService, url string, cfg *reportConfig,
 	opts []googleapi.CallOption) (*report, error) {
 	strategy := "DESKTOP"
-	if mobile {
+	if cfg.mobile {
 		strategy = "MOBILE"
 	}
+	cats := []string{"PERFORMANCE", "BEST_PRACTICES", "ACCESSIBILITY", "SEO"}
+	if cfg.pwa {
+		cats = append(cats, "PWA")
+	}
+
 	res, err := svc.Runpagespeed(url).
-		Category("PERFORMANCE", "BEST_PRACTICES", "ACCESSIBILITY", "SEO", "PWA").
+		Category(cats...).
 		Strategy(strategy).
 		Do(opts...)
 	if err != nil {

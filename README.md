@@ -39,6 +39,8 @@ Analyzes web pages using PageSpeed Insights.
         Email address to mail report to (write report to stdout if empty)
   -mobile
         Analyzes the page as a mobile (rather than desktop) device
+  -pwa
+        Perform Progressive Web App audits (default true)
   -retries int
         Maximum retries after failed calls to API (default 2)
   -verbose
