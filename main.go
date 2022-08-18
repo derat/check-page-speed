@@ -18,6 +18,7 @@ import (
 
 type reportConfig struct {
 	startTime   time.Time
+	mobile      bool   // generate reports for mobile rather than desktop
 	mailAddr    string // email address to send to ("-" to dump to stdout)
 	fullURLs    bool   // print full URLs instead of paths in summary table
 	audits      string // auditsFailed, auditsAll, auditsNone
@@ -46,7 +47,7 @@ func main() {
 	flag.BoolVar(&cfg.fullURLs, "full-urls", false, "Print full URLs (instead of paths) in report")
 	key := flag.String("key", "", "API key to use (empty for no key)")
 	flag.StringVar(&cfg.mailAddr, "mail", "", "Email address to mail report to (write report to stdout if empty)")
-	mobile := flag.Bool("mobile", false, "Analyzes the page as a mobile (rather than desktop) device")
+	flag.BoolVar(&cfg.mobile, "mobile", false, "Analyzes the page as a mobile (rather than desktop) device")
 	retries := flag.Int("retries", 2, "Maximum retries after failed calls to API")
 	verbose := flag.Bool("verbose", false, "Log verbosely")
 	workers := flag.Int("workers", 8, "Maximum simultaneous calls to API")
@@ -95,7 +96,7 @@ func main() {
 			go func() {
 				for job := range jobs {
 					vlogf("Starting attempt #%d for %v", job.attempts+1, job.url)
-					job.rep, job.err = getReport(apiSvc, job.url, *mobile, apiOpts)
+					job.rep, job.err = getReport(apiSvc, job.url, cfg.mobile, apiOpts)
 					vlogf("Finished attempt #%d for %v", job.attempts+1, job.url)
 					job.attempts++
 					results <- job
