@@ -1,5 +1,7 @@
 # check-page-speed
 
+[![Build Status](https://storage.googleapis.com/derat-build-badges/ed044c39-7d4b-431b-b015-0a3864a38b45.svg)](https://storage.googleapis.com/derat-build-badges/ed044c39-7d4b-431b-b015-0a3864a38b45.html)
+
 `check-page-speed` is a command-line program that uses Google's free [PageSpeed
 Insights API] to generate [Lighthouse] reports about one or more web pages,
 optionally sending them via email. Its main purpose is automated monitoring of a
