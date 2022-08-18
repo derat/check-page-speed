@@ -16,6 +16,8 @@ import (
 	pso "google.golang.org/api/pagespeedonline/v5"
 )
 
+const keyEnv = "PAGE_SPEED_API_KEY"
+
 type reportConfig struct {
 	startTime   time.Time
 	mobile      bool   // generate reports for mobile rather than desktop
@@ -42,10 +44,10 @@ func main() {
 	cfg := reportConfig{startTime: time.Now()}
 	flag.StringVar(&cfg.audits, "audits", auditsFailed,
 		fmt.Sprintf("Audits to print (%q, %q, %q)", auditsFailed, auditsAll, auditsNone))
-	flag.IntVar(&cfg.maxDetails, "details", 5, "Maximum details for each audit (-1 for all)")
-	flag.IntVar(&cfg.detailWidth, "detail-width", 40, "Maximum audit detail column width (0 or -1 for no limit)")
+	flag.IntVar(&cfg.maxDetails, "details", 10, "Maximum details for each audit (-1 for all)")
+	flag.IntVar(&cfg.detailWidth, "detail-width", 40, "Maximum audit detail column width (-1 for no limit)")
 	flag.BoolVar(&cfg.fullURLs, "full-urls", false, "Print full URLs (instead of paths) in report")
-	key := flag.String("key", "", "API key to use (empty for no key)")
+	key := flag.String("key", os.Getenv(keyEnv), fmt.Sprintf("API key to use (can also set %v)", keyEnv))
 	flag.StringVar(&cfg.mailAddr, "mail", "", "Email address to mail report to (write report to stdout if empty)")
 	flag.BoolVar(&cfg.mobile, "mobile", false, "Analyzes the page as a mobile (rather than desktop) device")
 	retries := flag.Int("retries", 2, "Maximum retries after failed calls to API")
